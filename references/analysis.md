@@ -2,11 +2,11 @@
 
 ## Universe and identifiers
 
-The experimental background should include every gene that could have been selected into a query. For expression-based selection, this usually means the genes eligible after the experiment's detection and testing filters. The software requires this background in gene-list mode; it does not silently pick all genes in the organism. See the [GO Consortium enrichment guide](https://geneontology.org/docs/go-enrichment-analysis/).
+The experimental background should include every gene that could have been selected into a query. For expression-based selection, this usually means the genes eligible after the experiment's detection and testing filters. A custom experimental background is optional. Without one, the software uses every gene from the selected organism that has at least one usable GO annotation in any selected aspect. This union is computed before term-size filtering, after the evidence, qualifier and active-term rules below; it is shared across selected aspects. The default organism is human (9606). A genome-wide annotated background can differ from an experiment-specific tested universe, so the software records the policy and size explicitly. See the [GO Consortium enrichment guide](https://geneontology.org/docs/go-enrichment-analysis/).
 
 NCBI gene_info supplies current Entrez GeneIDs, official symbols, unique aliases and Ensembl cross-references for the chosen taxonomy ID. Exact official symbol matches take priority over aliases. Ambiguous aliases and unmapped identifiers are audited and excluded. Ensembl gene-version suffixes are removed; symbol case and other suffixes are preserved. Only unique mapped Entrez IDs are counted. Numeric inputs are interpreted as Entrez IDs; symbols consisting entirely of numbers are not disambiguated automatically. Historical IDs absent from gene_info are not rescued using gene_history.
 
-The effective background contains all unique mapped background genes, including those without usable GO annotations. Query size is the number of unique mapped query genes in that background. Mapping different aliases to one ID does not increase counts. Out-of-background mapped query genes cause an error by default; explicit `--outside-background drop` records and excludes them. Input file duplicates are removed before reporting `input_genes`.
+When a custom background is provided, the effective background contains all unique mapped background genes, including those without usable GO annotations. With the default background, mapped query genes without usable annotations in the selected aspects are excluded and recorded as `no_usable_go_annotation`. Query size is the number of unique mapped query genes in that background. Mapping different aliases to one ID does not increase counts. For a custom background, out-of-background mapped query genes cause an error by default; explicit `--outside-background drop` records and excludes them. Input file duplicates are removed before reporting `input_genes`.
 
 ## Ontology and annotations
 
@@ -26,19 +26,13 @@ Benjamini–Hochberg correction is applied separately to **all candidate terms w
 - BgRatio = M/N.
 - FoldEnrichment = (k/n)/(M/N).
 
-Mapped but unannotated genes remain in N and n. This preserves the original workflow's convention and can differ from tools that restrict the universe to annotated genes. Database versions, evidence filters and universe conventions can also explain cross-tool differences.
-
-## Loading matrices
-
-CSV rows are genes, columns are programs, and the first column is the gene ID. Values must be finite and nonnegative; at least two program columns are required. For each gene, Z is `(loading - mean across all programs) / sample SD across all programs`, with `ddof=1`. Constant rows get Z=0. Selection is strictly greater than the chosen threshold. All matrix genes form the background; neither highly variable genes nor protein-coding genes are imposed as an additional filter. When aliases map to one GeneID, selection of any alias includes the ID once.
-
-For K program columns, the greatest possible sample-standardized Z is (K-1)/sqrt(K). Thus the default Z > 3 cannot select anything when K <= 10. This is a mathematical consequence of the selected scoring rule, not a software error.
+With a custom background, mapped but unannotated genes remain in N and n. The default background restricts N and n to genes with usable GO annotation in the selected aspects. Database versions, evidence filters and universe conventions can also explain cross-tool differences.
 
 ## Outputs and reproducibility
 
 `settings.json` stores parameters, input/annotation SHA-256 hashes, ontology version and software versions. Supply `--ontology-doi` if you know the exact release DOI. Keep the exact annotation files: re-downloading a changing URL does not reproduce old results. NCBI gene2go is an independently updated annotation source and need not be synchronized with the GO ontology release.
 
-`summary.csv` reports one row per query/aspect; `annotation_coverage.csv` distinguishes background size from annotated size. `mapping/` contains gene mapping and unknown GO audits; `gene_lists/` contains the submitted/selected query IDs. `tables/*_all.csv` contains every tested term, while `*_significant.csv` is the significant subset. Each dot plot has a corresponding `*_plotted_terms.csv`, PNG and vector PDF. `plot_failures.csv` records failures, which also cause a nonzero exit.
+`summary.csv` reports one row per query/aspect; `annotation_coverage.csv` distinguishes background size from annotated size. `mapping/` contains gene mapping and unknown GO audits; `gene_lists/` contains the submitted query IDs. `tables/*_all.csv` contains every tested term, while `*_significant.csv` is the significant subset. Each dot plot has a corresponding `*_plotted_terms.csv`, PNG and vector PDF. `plot_failures.csv` records failures, which also cause a nonzero exit.
 
 Plots select up to `--top-terms` significant terms by adjusted p, then sort them by GeneRatio. Dot area encodes overlap count; color is -log10(adjusted p). Color and size scales are local to each plot; do not infer cross-panel differences from color/area alone. Empty plots explicitly state that no enrichment passed the threshold.
 

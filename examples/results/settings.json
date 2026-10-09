@@ -1,6 +1,6 @@
 {
-  "tool_version": "0.1.0",
-  "created_utc": "2026-10-09T04:29:33.382024+00:00",
+  "tool_version": "0.2.0",
+  "created_utc": "2026-10-09T05:30:03.053028+00:00",
   "taxid": 9606,
   "ontology_version": "releases/2026-07-26",
   "ontology_doi": null,
@@ -12,12 +12,10 @@
       "immune_biased=examples\\inputs\\immune_biased.txt",
       "dna_repair_biased=examples\\inputs\\dna_repair_biased.txt"
     ],
-    "loading": null,
+    "genes": null,
     "background": "examples\\inputs\\background.txt",
     "column": null,
     "background_column": null,
-    "program": null,
-    "z_threshold": 3.0,
     "taxid": 9606,
     "obo": "examples\\annotations\\go-basic.obo",
     "gene_info": "examples\\annotations\\gene_info.gz",
@@ -37,14 +35,10 @@
     "top_terms": 15,
     "dpi": 180,
     "outside_background": "error",
-    "out": "examples\\results",
+    "out": "..\\..\\work\\gene-list-demo-v020",
     "no_plots": false
   },
   "inputs": [
-    {
-      "file": "background.txt",
-      "sha256": "6299117be3008efcf23d62ffcf8bbcf79bb1de342c8603cebbdedd56095070e6"
-    },
     {
       "file": "random_control_1.txt",
       "sha256": "593af0d9f1f7acbeafb73dd4c9802699a324cc3c5061d5da77f074e7197ccc65"
@@ -60,6 +54,10 @@
     {
       "file": "dna_repair_biased.txt",
       "sha256": "1990f56612d019759084962ddd14f8ff5b63db423208069389b886ff2d50a059"
+    },
+    {
+      "file": "background.txt",
+      "sha256": "6299117be3008efcf23d62ffcf8bbcf79bb1de342c8603cebbdedd56095070e6"
     }
   ],
   "annotations": {
@@ -76,7 +74,7 @@
       "sha256": "b710d17eb3c51de448b7aef4db153eafa614c83db1345b5db3370a82089d8036"
     }
   },
-  "background_policy": "unique mapped genes, including genes without GO annotations",
+  "background_policy": "custom: unique mapped genes, including genes without GO annotations",
   "multiple_testing": "BH separately per query and GO aspect, including zero-hit terms",
   "software": {
     "python": "3.12.9",

@@ -2,7 +2,7 @@
 
 **从 gene list 到可追溯的 GO 富集结果，全程本地分析。**
 
-这是一个可直接运行的 Python 工具，也可以作为 Codex Skill 使用。支持单个或多个基因列表、自定义背景，以及原来的 gene × GEP loading 矩阵输入；输出基因映射审计、完整统计表和 PNG/PDF 气泡图。
+这是一个可直接运行的 Python 工具，也可以作为 Codex Skill 使用。用户只需提供一个基因列表，默认使用人类注释和 GO 注释基因背景；也支持多个列表和可选的自定义背景。输出基因映射审计、完整统计表和 PNG/PDF 气泡图。
 
 [English](README.md) · [统计方法](references/analysis.md) · [示例结果](examples/results/summary.csv) · [Skill 定义](SKILL.md)
 
@@ -32,7 +32,7 @@ python scripts/run_demo.py --out demo-results
 
 ## 分析自己的 gene list
 
-准备两个 TXT 文件，每行一个基因 ID，不要表头：`genes.txt` 为目标列表，`background.txt` 为实验中有机会被选入目标列表的全部基因。支持 symbol、Ensembl gene ID、Entrez GeneID。
+只需准备一个 `genes.txt`，每行一个基因 ID，不要表头。支持 symbol、Ensembl gene ID、Entrez GeneID。
 
 首次下载公开注释：
 
@@ -43,8 +43,12 @@ python scripts/go_enrichment.py download --taxid 9606 --out annotation-cache
 完整 NCBI `gene2go.gz` 可能超过 1 GB，支持断点续传和校验。也可直接使用已有文件。网络只用于下载公开注释；分析脚本不会上传基因列表。
 
 ```sh
-python scripts/go_enrichment.py analyze --query sample=genes.txt --background background.txt --taxid 9606 --obo annotation-cache/go-basic.obo --gene-info annotation-cache/gene_info.gz --gene2go annotation-cache/gene2go.gz --out results/sample
+python scripts/go_enrichment.py analyze --genes genes.txt
 ```
+
+默认读取 `annotation-cache/` 中的人类注释，分析 BP/MF/CC，并把结果写入 `results/` 下的新时间戳目录。**不需要用户提供背景文件**：默认背景是指定 GO 分支中拥有有效注释的全部基因，在条目大小筛选之前确定。能映射但缺少相应 GO 注释的目标基因会被排除，并在结果中记录。
+
+如果有实验特定背景，可通过 `--background background.txt` 提供；它应包含实验中所有有机会被选入目标列表的基因。
 
 - 批量分析：重复添加 `--query 名称=文件路径`。
 - CSV/TSV：用 `--column gene` 指定目标表的基因列，`--background-column gene` 指定背景表的基因列。
@@ -53,14 +57,6 @@ python scripts/go_enrichment.py analyze --query sample=genes.txt --background ba
 - 物种：人类 `9606`、小鼠 `10090`、大鼠 `10116` 有内置下载地址；其他物种需要提供兼容的 NCBI 文件。仓库的生物学示例目前仅验证了人类。
 
 **不要把 `examples/annotations/` 用于自己的任意基因列表。** 它仅包含演示背景所需的注释，真实分析应使用完整的物种注释。
-
-## 保留原来的 GEP 分析方式
-
-```sh
-python scripts/go_enrichment.py analyze --loading loadings.csv --z-threshold 3 --taxid 9606 --obo annotation-cache/go-basic.obo --gene-info annotation-cache/gene_info.gz --gene2go annotation-cache/gene2go.gz --out results/geps
-```
-
-输入是第一列为基因、其余列为非负 program loading 的 CSV。按每个基因在全部 program 间的均值和样本标准差计算 Z（`ddof=1`），严格选择 Z > 阈值，全部输入基因作为背景。`--program GEP_000` 仅限制分析哪些 program，不改变 Z 的计算范围。program 数量不超过 10 时，Z > 3 在数学上无法达到；工具不会擅自降低阈值。
 
 ## 安装为 Skill
 
@@ -72,13 +68,13 @@ git clone https://github.com/Sculptor815/go-enrichment-skill.git ~/.codex/skills
 
 如果配置了自定义 Codex home，请使用对应的 `skills` 目录。安装 Python 依赖后，在新会话中使用：
 
-> 使用 $go-enrichment-skill，分析我的人类基因列表，以 background.txt 为背景，生成 GO BP/MF/CC 富集表和图。
+> 使用 $go-enrichment-skill，分析下面这个 gene list，生成 GO 富集结果和图。
 
 ## 结果怎么看
 
 先看 `summary.csv` 和 `annotation_coverage.csv`，再检查 `mapping/` 中未映射、歧义和背景外基因。`tables/` 保存全部及显著条目，`plots/` 保存 PNG、矢量 PDF 和准确的作图条目。`settings.json` 记录版本、参数、哈希和运行状态。
 
-统计方法为单侧超几何检验，按**每个列表 × 每个 GO 分支**分别进行 BH 校正，零命中候选条目也参与校正。重复映射到同一 Entrez ID 的输入只计数一次；能映射但没有 GO 注释的基因保留在分母中。默认拒绝背景外目标基因，只有显式指定 `--outside-background drop` 才会记录后排除。
+统计方法为单侧超几何检验，按**每个列表 × 每个 GO 分支**分别进行 BH 校正，零命中候选条目也参与校正。重复映射到同一 Entrez ID 的输入只计数一次；默认使用 GO 注释基因作为背景；提供自定义背景时，能映射但没有 GO 注释的基因保留在分母中。自定义背景之外的目标基因默认会触发错误，显式指定 `--outside-background drop` 才会记录后排除。
 
 没有显著结果也是有效结果。GeneRatio 是命中基因数/有效目标基因数，不是 FoldEnrichment；富集不能直接说明功能激活或抑制。本工具实现 ORA，不是对排序基因列表做 GSEA。
 

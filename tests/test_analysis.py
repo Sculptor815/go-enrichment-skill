@@ -3,7 +3,6 @@ import csv
 import gzip
 import io
 import json
-import math
 import os
 from pathlib import Path
 import shutil
@@ -20,7 +19,7 @@ import pandas as pd
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'scripts'
 sys.path.insert(0, str(SCRIPTS))
-from go_enrichment import GeneMapper, bh_adjust, download, enrich, load_annotations, read_list, read_loading, safe_name
+from go_enrichment import GeneMapper, bh_adjust, download, enrich, load_annotations, read_list, safe_name
 from ontology import read_go
 
 
@@ -131,22 +130,6 @@ is_obsolete: true
         self.assertEqual(df.iloc[0].GeneRatio, 0)
         self.assertFalse(df.iloc[0].significant)
 
-    def test_loading_sample_sd_constant_rows_and_strict_threshold(self):
-        path = self.tmp/'loading.csv'
-        path.write_text('gene,A,B,C\nG1,0,0,9\nG2,4,4,4\nG3,0,0,0\n')
-        bg, queries, selection = read_loading(path, 1.0)
-        self.assertEqual(queries['C'], ['G1'])
-        self.assertAlmostEqual(selection['C'].iloc[0].zscore, 2/math.sqrt(3))
-        _, queries, _ = read_loading(path, 2/math.sqrt(3))
-        self.assertEqual(queries['C'], [])
-
-    def test_loading_invalid_and_duplicate_identifiers(self):
-        path = self.tmp/'bad.csv'
-        for text in ['gene,A,A\nG1,1,2\n', 'gene,A,B\nG1,1,2\nG1,1,2\n', 'gene,A,B\nG1,-1,2\n']:
-            path.write_text(text)
-            with self.assertRaises(ValueError):
-                read_loading(path, 3)
-
     def test_gene_lists_preserve_na_and_leading_zero_strings(self):
         path = self.tmp/'genes.csv'
         path.write_text('gene\nNA\n001\nNA\n')
@@ -182,6 +165,50 @@ is_obsolete: true
         second = self.cli('--no-plots')
         self.assertNotEqual(second.returncode, 0)
         self.assertIn('must be empty', second.stderr)
+
+    def test_single_list_uses_default_cache_background_and_output(self):
+        cache = self.tmp/'annotation-cache'
+        cache.mkdir()
+        for source, name in [(self.obo, 'go-basic.obo'), (self.info, 'gene_info.gz'), (self.g2g, 'gene2go.gz')]:
+            shutil.copyfile(source, cache/name)
+        query = self.tmp/'genes.txt'
+        query.write_text('G1\n1\nG2\nG10\nmissing\n')
+        run = subprocess.run([sys.executable, str(SCRIPTS/'go_enrichment.py'), 'analyze',
+            '--genes', 'genes.txt', '--min-term-size', '1', '--no-plots'], cwd=self.tmp,
+            capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        out = next((self.tmp/'results').iterdir())
+        summary = pd.read_csv(out/'summary.csv')
+        self.assertTrue((summary.background_size == 3).all())  # usable annotations: 1, 4, 5
+        self.assertTrue((summary.mapped_query == 1).all())
+        self.assertTrue((summary.outside_background == 2).all())
+        metadata = json.loads((out/'settings.json').read_text())
+        self.assertTrue(metadata['background_policy'].startswith('default:'))
+        audit = pd.read_csv(out/'mapping/genes.csv').set_index('gene')
+        self.assertEqual(audit.loc['G10', 'exclusion_reason'], 'no_usable_go_annotation')
+
+    def test_default_background_precedes_term_size_filter(self):
+        query = self.tmp/'genes.txt'; query.write_text('G5\n')
+        run = subprocess.run([sys.executable, str(SCRIPTS/'go_enrichment.py'), 'analyze',
+            '--genes', str(query), '--obo', str(self.obo), '--gene-info', str(self.info),
+            '--gene2go', str(self.g2g), '--aspects', 'BP', '--min-term-size', '2',
+            '--out', str(self.tmp/'results'), '--no-plots'], capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        summary = pd.read_csv(self.tmp/'results/summary.csv')
+        self.assertEqual(summary.iloc[0].background_size, 3)
+        self.assertEqual(summary.iloc[0].mapped_query, 1)  # its term has size 1 and is filtered out
+
+    def test_default_background_respects_evidence_exclusions(self):
+        query = self.tmp/'genes.txt'; query.write_text('G4\n')
+        run = subprocess.run([sys.executable, str(SCRIPTS/'go_enrichment.py'), 'analyze',
+            '--genes', str(query), '--obo', str(self.obo), '--gene-info', str(self.info),
+            '--gene2go', str(self.g2g), '--exclude-evidence', 'ND', 'IEA', '--min-term-size', '1',
+            '--out', str(self.tmp/'results'), '--no-plots'], capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        summary = pd.read_csv(self.tmp/'results/summary.csv')
+        self.assertTrue((summary.background_size == 2).all())
+        self.assertTrue((summary.mapped_query == 0).all())
+        self.assertEqual(summary.iloc[0].status, 'no_eligible_query')
 
     def test_download_resumes_truncated_response_and_reuses_verified_cache(self):
         class Response(io.BytesIO):

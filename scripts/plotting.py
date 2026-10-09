@@ -1,4 +1,4 @@
-"""Headless GO dot plots adapted from the original GEP workflow."""
+"""Headless GO dot plots for gene-list enrichment results."""
 import textwrap
 import matplotlib
 matplotlib.use("Agg")
@@ -16,12 +16,12 @@ plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 10,
 def csv_save(frame, path):
     frame.to_csv(path, index=False, encoding="utf-8")
 
-def dotplot(df, gep, source, output, query_n, fdr=0.05, top_terms=15, dpi=180, input_n=None):
+def dotplot(df, list_name, source, output, query_n, fdr=0.05, top_terms=15, dpi=180, input_n=None):
     data = df.loc[df["significant"].astype(bool)].sort_values(
         ["p_adjust_BH", "Count", "GO_ID"], ascending=[True, False, True]).head(top_terms)
     data = data.sort_values(["GeneRatio", "p_adjust_BH"], ascending=[False, True])
     csv_save(data, output.with_name(output.name + "_plotted_terms.csv"))
-    title = f"{gep}  |  GO {SOURCE_NAMES[source]}"
+    title = f"{list_name}  |  GO {SOURCE_NAMES[source]}"
     if data.empty:
         fig, ax = plt.subplots(figsize=(9, 3.4))
         ax.axis("off")

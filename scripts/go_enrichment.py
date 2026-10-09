@@ -25,7 +25,7 @@ from scipy.stats import hypergeom
 from ontology import read_go
 from plotting import dotplot
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 ASPECTS = {'biological_process': 'BP', 'molecular_function': 'MF', 'cellular_component': 'CC'}
 ROOTS = {'GO:0008150', 'GO:0003674', 'GO:0005575'}
 SPECIES = {9606: 'Homo_sapiens', 10090: 'Mus_musculus', 10116: 'Rattus_norvegicus'}
@@ -175,33 +175,6 @@ def enrich(name, aspect, query, background, candidates, terms, reverse, fdr):
     return df.sort_values(['p_adjust_BH', 'GO_ID'])
 
 
-def read_loading(path, threshold, selected=None):
-    with open_text(path) as f:
-        header = next(csv.reader(f))
-    if len(header) != len(set(x.strip() for x in header)):
-        raise ValueError('Duplicate matrix column names')
-    frame = pd.read_csv(path, index_col=0, keep_default_na=False, dtype=str)
-    frame.index = frame.index.map(str.strip)
-    frame.columns = frame.columns.map(str.strip)
-    if not frame.index.is_unique or '' in frame.index or '' in frame.columns:
-        raise ValueError('Empty or duplicate matrix identifiers')
-    h = frame.to_numpy(dtype=float)
-    if h.shape[0] == 0 or h.shape[1] < 2 or not np.isfinite(h).all() or (h < 0).any():
-        raise ValueError('Loading matrix needs genes, >=2 programs, and finite nonnegative values')
-    sd = h.std(axis=1, ddof=1, keepdims=True)
-    z = np.divide(h - h.mean(axis=1, keepdims=True), sd, out=np.zeros_like(h), where=sd > 0)
-    names = selected or list(frame.columns)
-    if not set(names) <= set(frame.columns):
-        raise ValueError('Selected program is missing from loading matrix')
-    queries, selections = {}, {}
-    for name in names:
-        j = frame.columns.get_loc(name)
-        mask = z[:, j] > threshold
-        queries[name] = frame.index[mask].tolist()
-        selections[name] = pd.DataFrame({'gene': queries[name], 'loading': h[mask, j], 'zscore': z[mask, j]})
-    return frame.index.tolist(), queries, selections
-
-
 def safe_name(name):
     value = re.sub(r'[^A-Za-z0-9_.-]', '_', name).strip(' .')
     if not value or value in {'.', '..'} or re.fullmatch(r'(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?', value):
@@ -210,17 +183,11 @@ def safe_name(name):
 
 
 def analyze(args):
-    selections = {}
-    if args.loading:
-        if args.background:
-            raise ValueError('--loading uses all matrix genes as background; omit --background')
-        background_genes, queries, selections = read_loading(args.loading, args.z_threshold, args.program)
-        inputs = [args.loading]
+    queries, inputs = {}, []
+    if args.genes:
+        queries[args.genes.stem] = read_list(args.genes, args.column)
+        inputs.append(args.genes)
     else:
-        if not args.background:
-            raise ValueError('Supply --background: all genes eligible for selection in your experiment')
-        background_genes = read_list(args.background, args.background_column)
-        queries, inputs = {}, [args.background]
         for spec in args.query:
             if '=' not in spec:
                 raise ValueError('--query requires NAME=PATH')
@@ -229,19 +196,38 @@ def analyze(args):
                 raise ValueError('Query names must be nonempty and unique')
             queries[name] = read_list(path, args.column)
             inputs.append(Path(path))
+    if args.background:
+        inputs.append(args.background)
+    elif args.background_column:
+        raise ValueError('--background-column requires --background')
     names = [safe_name(n) for n in queries]
     if len(set(n.lower() for n in names)) != len(names):
         raise ValueError('Query names collide after filename normalization')
     out = Path(args.out)
     if out.exists() and any(out.iterdir()):
         raise ValueError(f'Output directory must be empty: {out}')
+    for annotation in [args.obo, args.gene_info, args.gene2go]:
+        if not annotation.is_file():
+            raise ValueError(f'Missing annotation: {annotation}. First run the download command with --taxid {args.taxid} --out annotation-cache, or supply local annotation paths.')
     mapper = GeneMapper(args.gene_info, args.taxid)
-    bg_audit, bg_map = mapper.map(background_genes)
-    background = set(bg_map.values())
+    if args.background:
+        bg_audit, bg_map = mapper.map(read_list(args.background, args.background_column))
+        background = set(bg_map.values())
+        background_policy = 'custom: unique mapped genes, including genes without GO annotations'
+    else:
+        background = set(mapper.symbols)
+        background_policy = 'default: genes with usable GO annotations in the selected aspects, before term-size filtering'
     if not background:
         raise ValueError('No background genes mapped')
     terms, members, version, unknown = load_annotations(args.obo, args.gene2go, args.taxid,
         background, args.exclude_evidence)
+    if not args.background:
+        background = set().union(*(ids for go, ids in members.items()
+            if ASPECTS[terms[go]['namespace']] in args.aspects))
+        if not background:
+            raise ValueError('No usable GO-annotated background genes for this organism and aspect selection')
+        bg_audit, _ = mapper.map([str(gid) for gid in sorted(background)])
+        print(f'Using default GO-annotated background: taxid={args.taxid}, {len(background)} genes', flush=True)
     candidates = {aspect: {go: ids for go, ids in members.items()
         if ASPECTS[terms[go]['namespace']] == aspect and go not in ROOTS
         and args.min_term_size <= len(ids) <= args.max_term_size} for aspect in args.aspects}
@@ -264,7 +250,7 @@ def analyze(args):
         inputs=[dict(file=Path(p).name, sha256=sha256(p)) for p in inputs],
         annotations={key: dict(file=Path(p).name, sha256=sha256(p))
             for key, p in [('obo', args.obo), ('gene_info', args.gene_info), ('gene2go', args.gene2go)]},
-        background_policy='unique mapped genes, including genes without GO annotations',
+        background_policy=background_policy,
         multiple_testing='BH separately per query and GO aspect, including zero-hit terms',
         software=dict(python=platform.python_version(), numpy=np.__version__, pandas=pd.__version__, scipy=scipy.__version__),
         status='running')
@@ -275,8 +261,12 @@ def analyze(args):
         audit, mapping = mapper.map(genes)
         outside = set(mapping.values()) - background
         audit['in_background'] = [mapping.get(g) in background for g in audit.gene]
+        audit['exclusion_reason'] = [
+            '' if mapping.get(g) in background else
+            ('outside_custom_background' if args.background else 'no_usable_go_annotation')
+            if g in mapping else 'unmapped_or_ambiguous' for g in audit.gene]
         audit.to_csv(out / 'mapping' / f'{stem}.csv', index=False)
-        if outside and args.outside_background == 'error':
+        if outside and args.background and args.outside_background == 'error':
             metadata['status'] = 'failed: query outside background'
             save_json(out / 'settings.json', metadata)
             raise ValueError(f'{name}: {len(outside)} mapped genes outside background; inspect mapping or explicitly use --outside-background drop')
@@ -285,7 +275,7 @@ def analyze(args):
         for gene, gid in mapping.items():
             if gid in query:
                 reverse[gid].append(gene)
-        selected = selections.get(name, pd.DataFrame({'gene': genes})).copy()
+        selected = pd.DataFrame({'gene': genes})
         selected['entrez_id'] = [mapping.get(g, '') for g in selected.gene]
         selected['included'] = [mapping.get(g) in query for g in selected.gene]
         selected.to_csv(out / 'gene_lists' / f'{stem}.csv', index=False)
@@ -299,7 +289,7 @@ def analyze(args):
                         args.fdr, args.top_terms, args.dpi, input_n=len(genes))
                 except Exception as exc:
                     failures.append(dict(list=name, source=aspect, error=str(exc)))
-            status = 'no_testable_terms' if result.empty else ('empty_query' if not genes else ('no_mapped_query' if not query else 'ok'))
+            status = 'no_testable_terms' if result.empty else ('empty_query' if not genes else (('no_eligible_query' if mapping else 'no_mapped_query') if not query else 'ok'))
             summary.append(dict(list=name, source=aspect, input_genes=len(genes), mapped_query=len(query),
                 unmapped_or_ambiguous=int((audit.status != 'mapped').sum()), outside_background=len(outside),
                 background_size=len(background), tested_terms=len(result), significant_terms=int(result.significant.sum()), status=status))
@@ -312,7 +302,7 @@ def analyze(args):
         '# GO analysis results\n\nGO ontology: ' + version + '\n\n'
         'See summary.csv, settings.json, mapping/, tables/ and plots/.\n'
         'Hypergeometric over-representation; BH correction per query and GO aspect.\n'
-        'Background includes mapped genes without annotation. GeneRatio = overlap / mapped query.\n'
+        f'Background policy: {background_policy}. GeneRatio = overlap / eligible mapped query.\n'
         'No enriched terms is a valid result. Enrichment does not establish pathway activation.\n'
         'GO data: https://geneontology.org/ ; CC BY 4.0: https://creativecommons.org/licenses/by/4.0/\n', encoding='utf-8')
     if failures:
@@ -396,18 +386,16 @@ def parser():
     d.add_argument('--out', type=Path, required=True)
     d.add_argument('--obo-url', default='https://current.geneontology.org/ontology/go-basic.obo')
     d.add_argument('--gene-info-url')
-    a = sub.add_parser('analyze', help='Analyze gene lists or a gene x program loading matrix')
+    a = sub.add_parser('analyze', help='Analyze one gene list or a named batch of lists')
     mode = a.add_mutually_exclusive_group(required=True)
     mode.add_argument('--query', action='append', metavar='NAME=PATH')
-    mode.add_argument('--loading', type=Path)
-    a.add_argument('--background', type=Path)
+    mode.add_argument('--genes', type=Path, help='Gene list file; the only required analysis input')
+    a.add_argument('--background', type=Path, help='Optional experimental background; default is GO-annotated genes')
     a.add_argument('--column', help='Gene ID column in query CSV/TSV; otherwise headerless TXT')
     a.add_argument('--background-column')
-    a.add_argument('--program', action='append')
-    a.add_argument('--z-threshold', type=float, default=3.0)
     a.add_argument('--taxid', type=int, default=9606)
-    for name in ['obo', 'gene-info', 'gene2go']:
-        a.add_argument('--' + name, type=Path, required=True)
+    for name, filename in [('obo', 'go-basic.obo'), ('gene-info', 'gene_info.gz'), ('gene2go', 'gene2go.gz')]:
+        a.add_argument('--' + name, type=Path, default=Path('annotation-cache') / filename)
     a.add_argument('--ontology-doi', help='Optional DOI of the exact ontology release')
     a.add_argument('--aspects', nargs='+', choices=['BP', 'MF', 'CC'], default=['BP', 'MF', 'CC'])
     a.add_argument('--exclude-evidence', nargs='*', default=['ND'], help='NOT is always excluded; default excludes ND and retains IEA')
@@ -417,7 +405,7 @@ def parser():
     a.add_argument('--top-terms', type=int, default=15)
     a.add_argument('--dpi', type=int, default=180)
     a.add_argument('--outside-background', choices=['error', 'drop'], default='error')
-    a.add_argument('--out', type=Path, required=True)
+    a.add_argument('--out', type=Path, default=Path('results') / datetime.now().strftime('run_%Y%m%d_%H%M%S_%f'))
     a.add_argument('--no-plots', action='store_true')
     return p
 
@@ -431,8 +419,8 @@ def main(argv=None):
         if args.command == 'download':
             download(args)
         else:
-            if not (0 < args.fdr < 1 and 1 <= args.min_term_size <= args.max_term_size and args.top_terms >= 1 and args.dpi >= 72 and np.isfinite(args.z_threshold)):
-                raise ValueError('Invalid FDR, term-size, plot or Z-threshold settings')
+            if not (0 < args.fdr < 1 and 1 <= args.min_term_size <= args.max_term_size and args.top_terms >= 1 and args.dpi >= 72):
+                raise ValueError('Invalid FDR, term-size or plot settings')
             if len(args.aspects) != len(set(args.aspects)):
                 raise ValueError('Duplicate GO aspects')
             analyze(args)

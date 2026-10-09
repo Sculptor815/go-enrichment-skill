@@ -1,40 +1,42 @@
 ---
 name: go-enrichment-skill
-description: Run local Gene Ontology over-representation analysis for one or more gene lists against an explicit background, or extract lists from gene-by-program loading matrices. Produce mapping audits, corrected statistics, and GO dot plots. Use for GO enrichment requests; this is not ranked GSEA or differential expression analysis.
+description: Run local Gene Ontology over-representation analysis from a user-provided gene list. Produce mapping audits, corrected statistics and GO dot plots, with an automatic annotation-based background or an optional custom background. Use for GO enrichment requests; this is not ranked GSEA or differential expression analysis.
 ---
 
-# GO enrichment
+# GO enrichment from a gene list
 
-Use the Python tools in this skill directory. Resolve script and reference paths relative to this file; resolve user data and output paths relative to the user's working directory. Read [analysis semantics](references/analysis.md) when choosing background, evidence filters, or interpreting results.
+Use the Python tools in this skill directory. Resolve script and reference paths relative to this file; resolve user inputs and outputs relative to the user's working directory. Read [analysis semantics](references/analysis.md) when interpreting background choices, evidence filters or results.
 
-## Choose inputs
+## Accept the list
 
-- For ordinary gene lists, establish the organism, query file(s), and the background of genes eligible for selection in the experiment. If organism or background is unknown, ask for it before claiming interpretable enrichment. Do not substitute the query itself, a protein-coding universe, or the demo background without a justified, explicit choice.
-- Accept headerless TXT (one gene per line) or CSV/TSV with a specified gene column. Multiple lists are named separately. Symbols are case-sensitive; Entrez and Ensembl gene IDs are supported. Preserve input identifiers; the tool audits ambiguous and unmapped values.
-- For nonnegative gene × program loading matrices, `--loading` uses all input genes as background and selects strictly Z > threshold across all program columns, with sample SD (`ddof=1`). `--program` selects outputs, not the columns used to calculate Z. Z is descriptive, not a normal-test statistic. With few program columns, Z > 3 may be impossible; do not silently lower it.
-- Check Python >=3.10 and dependencies in `requirements.txt`. Install into the user's selected environment or a local virtual environment when needed.
+- The user only needs to supply the genes, as a pasted list or a file. Save pasted IDs to a headerless TXT file, one ID per line. Accept TXT or a CSV/TSV with a gene column. Symbols are case-sensitive; Entrez and Ensembl gene IDs are supported.
+- Default to human (`--taxid 9606`) unless the user specifies another organism or the context identifies one. State the organism used. If the data conflict with that assumption, resolve the mismatch rather than interpreting failed mapping as a biological result.
+- A background file is optional. By default, use the organism's genes with usable GO annotations in the selected aspects, before term-size filtering. Do not require the user to provide a background. If the user supplies an experiment-specific universe, use `--background` and report that policy.
+- Check Python >=3.10 and `requirements.txt` dependencies. Use the selected Python environment or a local virtual environment. Reuse full, species-compatible local annotations when available; the bundled demo snapshot is restricted to its own synthetic background.
 
 ## Run
 
-Existing local GO/NCBI annotation files can be supplied directly. To obtain public annotations, run:
+If full annotations are missing, manage their download as part of the analysis:
 
 ```sh
 python scripts/go_enrichment.py download --taxid 9606 --out annotation-cache
 ```
 
-This downloads public files only; the scripts do not submit gene lists. The all-species `gene2go.gz` can exceed 1 GB. Human, mouse and rat have built-in gene_info download URLs; other NCBI-supported organisms need `--gene-info-url` or local species-compatible files. The included demo snapshot is restricted to its synthetic background and must not be reused as a general annotation database.
+Only public annotations are downloaded; gene lists stay local. NCBI gene2go can exceed 1 GB. Human, mouse and rat have built-in gene_info URLs; other supported species need `--gene-info-url` or compatible local files.
+
+Then run:
 
 ```sh
-python scripts/go_enrichment.py analyze --query treated=genes.txt --background background.txt --taxid 9606 --obo annotation-cache/go-basic.obo --gene-info annotation-cache/gene_info.gz --gene2go annotation-cache/gene2go.gz --out results/treated
+python scripts/go_enrichment.py analyze --genes genes.txt
 ```
 
-Repeat `--query NAME=PATH` for batches. Add `--column gene` and/or `--background-column gene` for tabular inputs. Use `--loading loadings.csv --z-threshold 3` instead of `--query` and `--background` for program matrices. Use a new or empty output directory. Consult `--help` for evidence filters, term-size limits and plot settings.
+This uses `annotation-cache/`, analyzes BP/MF/CC, and writes a new timestamped directory under `results/`. Supply `--obo`, `--gene-info` and `--gene2go` for annotations elsewhere. Use `--column gene` for tabular input. An optional `--out` must identify a new or empty directory. For batches, use repeated `--query NAME=PATH` instead of `--genes`.
 
 ## Check and explain
 
-1. Read `settings.json`, `summary.csv`, and `annotation_coverage.csv`. A nonzero exit, incomplete status, or plot failure is not a successful complete analysis.
-2. Inspect mapping audits for unmapped/ambiguous inputs and genes outside background. The default rejects mapped query genes outside background. Use `--outside-background drop` only when the exclusion is intentional and report its count.
-3. Report the organism, effective query/background sizes, annotation version, filters, and BH correction scope (each list × GO aspect separately). Zero-hit candidate terms participate in correction. Mapped genes without annotation remain in the denominator.
-4. Show relevant dot plots and link complete result tables. An empty or nonsignificant result is valid; never fill a significant-only plot with nonsignificant terms. GeneRatio is overlap/query size, not fold enrichment. Enrichment alone establishes neither activation nor repression.
+1. Read `settings.json`, `summary.csv`, `annotation_coverage.csv` and mapping audits. A nonzero exit, incomplete status or plot error is not a complete successful analysis.
+2. Report the organism, background policy, effective query/background sizes, excluded/unmapped/ambiguous counts, annotation version and significant results. In default mode, mapped genes without usable GO annotations are excluded and audited. With a custom background, mapped query genes outside it cause an error unless exclusion was intentionally selected with `--outside-background drop`.
+3. Explain that BH correction is separate for each list × GO aspect and includes zero-hit candidate terms. GeneRatio is overlap/eligible mapped query size. Enrichment alone establishes neither activation nor repression.
+4. Show relevant plots and link full tables. Nonsignificant and empty results are valid; never add nonsignificant terms to a significant-only plot.
 
-For an offline demonstration, run `python scripts/run_demo.py --out demo-results`. These are seeded synthetic lists, including two uniform random controls and two deliberately GO-biased lists. Describe them as demonstrations, not biological discoveries. To generate a fresh seeded example from full annotations, use `scripts/make_demo.py --help`; keep the provenance and do not select seeds by significance.
+For an offline demonstration, run `python scripts/run_demo.py --out demo-results`. It uses seeded synthetic gene lists, including two uniform controls and two deliberately GO-biased lists, with an explicit synthetic background. Describe them as demonstrations, not biological discoveries. Generate fresh examples with `scripts/make_demo.py --help`; retain provenance and do not select seeds based on significance.
