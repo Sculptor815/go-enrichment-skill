@@ -14,6 +14,10 @@ Use the Python tools in this skill directory. Resolve script and reference paths
 - A background file is optional. By default, use the organism's genes with usable GO annotations in the selected aspects, before term-size filtering. Do not require the user to provide a background. If the user supplies an experiment-specific universe, use `--background` and report that policy.
 - Check Python >=3.10 and `requirements.txt` dependencies. Use the selected Python environment or a local virtual environment. Reuse full, species-compatible local annotations when available; the bundled demo snapshot is restricted to its own synthetic background.
 
+## Background reminder
+
+Before analysis, briefly remind the user in their language that background choice affects enrichment results. For experimental data, recommend all genes eligible for selection (for example, all genes tested in the same differential-expression comparison), not only significant genes. If no background is supplied, state that the default GO-annotated universe will be used and continue without requiring extra confirmation. Respect an already specified background and mention any relevant limitation when interpreting results.
+
 ## Run
 
 If full annotations are missing, manage their download as part of the analysis:
@@ -35,7 +39,7 @@ This uses `annotation-cache/`, analyzes BP/MF/CC, and writes a new timestamped d
 ## Check and explain
 
 1. Read `settings.json`, `summary.csv`, `annotation_coverage.csv` and mapping audits. A nonzero exit, incomplete status or plot error is not a complete successful analysis.
-2. Report the organism, background policy, effective query/background sizes, excluded/unmapped/ambiguous counts, annotation version and significant results. In default mode, mapped genes without usable GO annotations are excluded and audited. With a custom background, mapped query genes outside it cause an error unless exclusion was intentionally selected with `--outside-background drop`.
+2. Report the organism, background policy, effective query/background sizes, excluded/unmapped/ambiguous counts, annotation version and significant results. State whether the background reflects the experiment's eligible genes or is an annotation-based fallback; retain the fallback limitation in the final interpretation. In default mode, mapped genes without usable GO annotations are excluded and audited. With a custom background, mapped query genes outside it cause an error unless exclusion was intentionally selected with `--outside-background drop`.
 3. Explain that BH correction is separate for each list × GO aspect and includes zero-hit candidate terms. GeneRatio is overlap/eligible mapped query size. Enrichment alone establishes neither activation nor repression.
 4. Show relevant plots and link full tables. Nonsignificant and empty results are valid; never add nonsignificant terms to a significant-only plot.
 
