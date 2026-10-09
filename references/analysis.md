@@ -8,6 +8,20 @@ NCBI gene_info supplies current Entrez GeneIDs, official symbols, unique aliases
 
 When a custom background is provided, the effective background contains all unique mapped background genes, including those without usable GO annotations. With the default background, mapped query genes without usable annotations in the selected aspects are excluded and recorded as `no_usable_go_annotation`. Query size is the number of unique mapped query genes in that background. Mapping different aliases to one ID does not increase counts. For a custom background, out-of-background mapped query genes cause an error by default; explicit `--outside-background drop` records and excludes them. Input file duplicates are removed before reporting `input_genes`.
 
+### Choosing a background
+
+Choose the universe from the experiment's selection process before inspecting enrichment significance. Background composition changes term frequencies, fold enrichment, the candidate-term set and adjusted P-values; a poorly matched universe can create apparent enrichment or hide genuine associations.
+
+| Query origin | Recommended experimental background |
+|---|---|
+| Differential-expression results | All genes eligible after the relevant detection/filtering steps and tested in that same comparison, including nonsignificant genes |
+| Targeted assay or genetic screen | All assayed genes that passed the eligibility/QC criteria and could have been selected |
+| Exploratory list without an available experimental universe | The default GO-annotated universe, with its limitation explicitly reported |
+
+The background should contain the query plus eligible nonselected genes, with compatible species and identifiers. Neither the query alone nor only significant genes represents the selection universe. Do not choose or adjust a universe to maximize significance. For multiple comparisons with different eligible gene sets, use separate runs with the appropriate background for each; a shared universe is appropriate only when the selection opportunities are shared.
+
+State the chosen policy before running and in the final interpretation. When the experiment-specific universe is unavailable, proceeding with the default is allowed, but the result is relative to the annotation-based reference rather than a verified experimental sampling universe. Acknowledge this limitation instead of requiring a background file or an extra approval step. This follows the [GO Consortium's recommendation to use the genes from which the query was selected](https://geneontology.org/docs/go-enrichment-analysis/).
+
 ## Ontology and annotations
 
 Input files are [go-basic.obo](https://geneontology.org/docs/download-ontology/), [NCBI gene_info](https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/), and [NCBI gene2go](https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz). Full or species-filtered gene2go files are supported. The taxonomy ID must match the data. Availability of gene_info does not guarantee useful gene2go coverage for every organism; inspect annotation_coverage.csv.

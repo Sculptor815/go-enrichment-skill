@@ -66,6 +66,14 @@ By default, the tool uses human annotations from `annotation-cache/`, analyzes B
 
 If you have an experiment-specific universe (all genes eligible for selection), supply it with `--background background.txt`; this can materially change the statistical comparison. The selected background policy is recorded in the output.
 
+> **Choose the background carefully.** It changes expected GO term frequencies, fold enrichment and adjusted P-values. The default GO-annotated universe is an exploratory fallback and may not reflect experimental selection opportunities. For differential expression, prefer all genes passing the relevant detection/filtering steps and tested in the same comparison, including nonsignificant genes. For targeted assays or screens, use all assayed genes eligible after QC. Include the query and eligible nonselected genes; do not use significant genes alone or adjust the background to obtain more significant terms. See [background guidance](references/analysis.md#choosing-a-background).
+
+```sh
+python scripts/go_enrichment.py analyze --genes genes.txt --background background.txt
+```
+
+When invoked as a skill, the agent explains the background choice before analysis and reports its limitations with the results. If an experimental universe is unavailable, it can continue with the default without extra confirmation, interpreting the results as exploratory relative to that annotation-based reference.
+
 Useful options:
 
 | Option | Use |

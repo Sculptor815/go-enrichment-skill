@@ -50,6 +50,14 @@ python scripts/go_enrichment.py analyze --genes genes.txt
 
 如果有实验特定背景，可通过 `--background background.txt` 提供；它应包含实验中所有有机会被选入目标列表的基因。
 
+> **请谨慎选择分析背景。** 背景会影响 GO 条目的预期频率、富集倍数及校正后的 P 值。默认 GO 注释背景是探索性分析的备用选择，不一定代表实验中基因被选中的机会。差异表达分析优先使用通过相关检测/过滤条件、实际参与同一次差异检验的全部基因（包括不显著基因）；靶向检测或筛选实验优先使用所有符合质控与入选条件的受测基因。背景应同时包含目标基因与有机会入选但未入选的基因，不要仅用显著基因，也不要为获得更多显著条目而调整背景。详见[背景选择说明](references/analysis.md#choosing-a-background)。
+
+```sh
+python scripts/go_enrichment.py analyze --genes genes.txt --background background.txt
+```
+
+使用 Skill 时，agent 会在分析前提醒背景选择的影响，并在结果解释中说明所用背景及局限。若暂时没有实验背景，仍可按默认背景继续分析，无需额外确认；结论应限定为相对于该注释背景的探索性结果。
+
 - 批量分析：重复添加 `--query 名称=文件路径`。
 - CSV/TSV：用 `--column gene` 指定目标表的基因列，`--background-column gene` 指定背景表的基因列。
 - 选择 GO 分支：`--aspects BP` 或 `--aspects BP MF CC`。
