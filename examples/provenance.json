@@ -1,0 +1,58 @@
+{
+  "seed": 815,
+  "taxid": 9606,
+  "ontology_version": "releases/2026-07-26",
+  "background_design": "uniform sample of human NCBI protein-coding GeneIDs",
+  "background_size": 6000,
+  "queries": [
+    {
+      "name": "random_control_1",
+      "design": "uniform without replacement",
+      "size": 120
+    },
+    {
+      "name": "random_control_2",
+      "design": "uniform without replacement",
+      "size": 120
+    },
+    {
+      "name": "immune_biased",
+      "design": "GO-biased synthetic sampling",
+      "target_go": "GO:0002376",
+      "size": 120,
+      "target_members": 90,
+      "other_genes": 30
+    },
+    {
+      "name": "dna_repair_biased",
+      "design": "GO-biased synthetic sampling",
+      "target_go": "GO:0006281",
+      "size": 120,
+      "target_members": 90,
+      "other_genes": 30
+    }
+  ],
+  "synthetic": true,
+  "notice": "Annotation-biased demos illustrate workflow, not independent biological discoveries. Random controls are never resampled based on significance.",
+  "snapshot_scope": "Only the demo background and its GO terms / is_a and part_of ancestors; not suitable for arbitrary user gene lists.",
+  "source_files": {
+    "obo": {
+      "url": "https://current.geneontology.org/ontology/go-basic.obo",
+      "sha256": "b08d45b268b8c24ccb2513dbbbc7d4df9f6521c099b413f79eb31e06e0fa3bcc"
+    },
+    "gene_info": {
+      "url": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz",
+      "sha256": "6e2f79000e79ecb430f2613b878d514302df7f81263b5db979010d032c3235a2"
+    },
+    "gene2go": {
+      "url": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz",
+      "sha256": "92c2369f5b3314e0424ded73445069dc1b1e860bfdd17cc30b604d86a6532349"
+    }
+  },
+  "snapshot_files": {
+    "gene2go.gz": "b710d17eb3c51de448b7aef4db153eafa614c83db1345b5db3370a82089d8036",
+    "gene_info.gz": "824ecc49f606bc24609d790f5de7e3e8afadfd5b39ed798b2ee7014fec5ee9ec",
+    "go-basic.obo": "aa13ceaf1551ce7ecfe3bbdddd3aefaba25417975ba3acc604a7957f5c352459"
+  },
+  "unknown_go_ids": []
+}

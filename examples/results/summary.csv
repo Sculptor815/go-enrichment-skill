@@ -1,0 +1,13 @@
+list,source,input_genes,mapped_query,unmapped_or_ambiguous,outside_background,background_size,tested_terms,significant_terms,status
+random_control_1,BP,120,120,0,0,6000,2851,0,ok
+random_control_1,MF,120,120,0,0,6000,617,0,ok
+random_control_1,CC,120,120,0,0,6000,475,0,ok
+random_control_2,BP,120,120,0,0,6000,2851,0,ok
+random_control_2,MF,120,120,0,0,6000,617,0,ok
+random_control_2,CC,120,120,0,0,6000,475,0,ok
+immune_biased,BP,120,120,0,0,6000,2851,400,ok
+immune_biased,MF,120,120,0,0,6000,617,14,ok
+immune_biased,CC,120,120,0,0,6000,475,15,ok
+dna_repair_biased,BP,120,120,0,0,6000,2851,166,ok
+dna_repair_biased,MF,120,120,0,0,6000,617,71,ok
+dna_repair_biased,CC,120,120,0,0,6000,475,38,ok

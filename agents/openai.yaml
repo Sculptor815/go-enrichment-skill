@@ -1,0 +1,4 @@
+interface:
+  display_name: "GO Enrichment"
+  short_description: "Local GO enrichment with auditable results and plots"
+  default_prompt: "Use $go-enrichment-skill to analyze my gene lists against my experimental background and produce GO enrichment tables and plots."

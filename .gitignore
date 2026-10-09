@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+/annotation-cache/
+/demo-results/
+/results/
+*.part
+*.part.json
+.DS_Store

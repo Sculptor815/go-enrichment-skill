@@ -1,0 +1,13 @@
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+*.csv text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.gz binary
+*.png binary
+*.pdf binary
+# Preserve exact bytes used by the published SHA-256 manifest on every platform.
+examples/annotations/** -text -whitespace linguist-vendored
+examples/inputs/** -text whitespace=cr-at-eol
